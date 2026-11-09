@@ -367,6 +367,14 @@ static void front_mouse_update(void){   /* main thread; also runtime/gamepad.m's
  }
  fprintf(stderr,"[totk] mouse %s\n",want?"held by the window (the settings panel, key 1, or Command-Tab lets it go)":"let go");
 }
+/* TOTK_INPUT_FILE "mousemove dx dy": exercise the production relative-input
+   path on the main thread, respecting focus/settings/text-entry capture. */
+void runtime_front_mouse_test(double dx,double dy) {
+ dispatch_async(dispatch_get_main_queue(), ^{
+  if(mouseHeld) { runtime_mouse_move(dx,dy); fprintf(stderr,"[totk-input] relative mouse test: %.3f %.3f\n",dx,dy); }
+  else fprintf(stderr,"[totk-input] relative mouse test ignored: pointer not captured\n");
+ });
+}
 enum { FPS_GRAPH_SAMPLES = 61, FPS_GRAPH_WIDTH = 220, FPS_GRAPH_HEIGHT = 90 };
 @interface TOTKHudBox:NSView
 @property(strong) NSTextField *label;

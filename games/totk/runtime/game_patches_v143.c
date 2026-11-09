@@ -77,6 +77,7 @@ static uint32_t branch(uint64_t pc,uint64_t target){
     if((delta&3)||delta<-(1<<27)||delta>=(1<<27))runtime_fail("1.4.3 patch branch outside range");
     return 0x14000000|(((uint32_t)(delta>>2))&0x3ffffff);
 }
+#include "mouse_camera_v143.h"
 /* The actor animation update has a second, unscaled clock for cloth/hair
  * (ordinary animation already receives FrameRateMgr's real-time step). Its
  * explicit time-factor path still constructs {factor / 30, factor} every
@@ -1950,6 +1951,7 @@ void runtime_game_patches(Module *m) {
     patch_fov(m);   /* after aspect_install: Vert+ may hold the same load */
     patch_shadow_res(m);
     patch_dof(m);
+    patch_native_mouse_camera(m);
     const char *enabled = getenv("TOTK_FPS60");
     if (enabled && !strcmp(enabled, "0")) {
         fprintf(stderr, "[totk] 1.4.3 shipping frame controller (TOTK_FPS60=0)\n");

@@ -1470,8 +1470,8 @@ def place_runtime(tree, app, version, logs, *, game='totk', lists=True, prompt_a
     lists=False keeps the app's warm-up lists (update_runtime.py, when the app's seed predates its shader-keys.json);
     else resolve_lists makes them anew."""
     res = app / 'Contents/Resources/totk'   # the launcher's game folder, for both games (app/launcher.m)
-    # The FXAA reference requires its notice in binary distributions; runtime updates use this same packaging path.
-    for name in ('fxaa', 'smaa'):
+    # Preserve third-party notices in binary distributions and runtime updates.
+    for name in ('fxaa', 'smaa', 'native_mouse_camera'):
         notice = tree / f'third_party/{name}/LICENSE.txt'
         if notice.is_file():
             clone(notice, res / f'licenses/{name}.txt')

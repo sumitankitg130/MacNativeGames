@@ -4,6 +4,7 @@ Code in this repository that comes from other projects keeps its license; the li
 
 | Code | From | License | File |
 |---|---|---|---|
+| Direct mouse camera layouts, guarded sites and veneer approach in `games/totk/runtime/mouse_camera_v143.h`, adapted for the current runtime | [dxnside/MacNativeGames](https://github.com/dxnside/MacNativeGames/commit/366aa07819fe595d5bd3d66fd17a29d4eca0fdb7), commit `366aa07819fe595d5bd3d66fd17a29d4eca0fdb7` (PR #1374) | MIT | `games/totk/third_party/native_mouse_camera/LICENSE.txt`; included in Mac app licenses |
 | `games/totk/third_party/d2r` (NSO rewriter, verification tools) | [d2r-mobile](https://github.com/jhaizhou-ops/d2r-mobile), adapted | MIT | `games/totk/third_party/d2r/LICENSE` |
 | `games/totk/third_party/d2r_gfx` (NVN on Metal, texture tools, host headers) | d2r-mobile, extended for this game | MIT | `games/totk/third_party/d2r_gfx/LICENSE` |
 | `games/totk/third_party/smaa` lookup tables and `totk_smaa_shader.h` (Metal adaptation of SMAA 1x presets) | [iryoku/smaa](https://github.com/iryoku/smaa) at `71c806a838bdd7d517df19192a20f0c61b3ca29d`; adapter origin recorded in `games/totk/third_party/smaa/README.md` | MIT | `games/totk/third_party/smaa/LICENSE.txt` |

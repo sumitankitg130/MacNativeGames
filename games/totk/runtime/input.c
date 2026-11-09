@@ -16,6 +16,7 @@ extern void runtime_prompt_note_input(PromptDevice) __attribute__((weak_import))
 #include <string.h>
 #include <stdatomic.h>
 #include <sys/stat.h>
+#include <math.h>
 typedef struct{int64_t sampling;uint64_t buttons;int32_t lx,ly,rx,ry;uint32_t attributes,pad;} NpadState;
 _Static_assert(sizeof(NpadState)==40,"Npad full-key ABI");
 static pthread_mutex_t inputLock=PTHREAD_MUTEX_INITIALIZER;
@@ -253,7 +254,7 @@ __attribute__((constructor)) static void input_script_start(void) {
 
 /* Optional local integration-test command stream. Appending complete lines lets tests inspect each
    actual frame before choosing the next input, instead of guessing load/menu timings. Disabled normally.
-   Commands: key <Mac keycode> <milliseconds>, down/up <Mac keycode>, shot <path>, wshot <path>, passdump <frames>, querylog <frames>, anomdump,
+   Commands: key <Mac keycode> <milliseconds>, down/up <Mac keycode>, mousemove <dx> <dy>, shot <path>, wshot <path>, passdump <frames>, querylog <frames>, anomdump,
    kbtest / kbtype <text> / kbenter / kbesc / kbshot <path> (the text entry bar), threads (dump every guest thread's wait), hletrace <0|1|2> (host calls the game makes), framestep <ms> (pin the frame step), mscan ... (memory scan and write watch, runtime/mem_scan.h), close. */
 extern void dm_gfx_shot_at(long frames, const char *path);
 extern void runtime_front_request_close(void);
@@ -280,7 +281,13 @@ static void *input_file(void *arg) {
         }
         if (runtime_survey_command(line)) continue;
         unsigned code, ms; int used = 0;
-        if (sscanf(line, "down %u %n", &code, &used) == 1 && used && !line[used] && code < 128) {
+        if (!strncmp(line,"mousemove ",10)) {
+            double dx,dy; int n=0;
+            if(sscanf(line+10,"%lf %lf %n",&dx,&dy,&n)==2 && n && !line[10+n] &&
+               isfinite(dx) && isfinite(dy) && fabs(dx)<=8192 && fabs(dy)<=8192 && &runtime_front_mouse_test)
+                runtime_front_mouse_test(dx,dy);
+            else fprintf(stderr,"[totk-input] mousemove needs two finite deltas within +/-8192\n");
+        } else if (sscanf(line, "down %u %n", &code, &used) == 1 && used && !line[used] && code < 128) {
             fprintf(stderr,"[totk-input] file: key %u down\n",code);runtime_input_key_synthetic(code,1);
         } else if (sscanf(line, "up %u %n", &code, &used) == 1 && used && !line[used] && code < 128) {
             fprintf(stderr,"[totk-input] file: key %u up\n",code);runtime_input_key_synthetic(code,0);

@@ -1,4 +1,5 @@
 #include "../runtime/runtime.h"
+#include "../runtime/input_prompts.h"
 #include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,7 +23,15 @@ int runtime_setting_word(const char *name,char *word,size_t size){(void)name;(vo
 void runtime_setting_save(const char *name,const char *word,const char *what){(void)name;(void)word;(void)what;}
 void runtime_setting_remove(const char *name){(void)name;}
 int runtime_mouse_enabled(void){return 0;}
+void runtime_prompt_keyboard(const KeyMap *map){(void)map;}
+void runtime_prompt_note_input(PromptDevice device){(void)device;}
+int vr_first_person(void){return 0;}
+void vr_set_first_person(int on){(void)on;runtime_fail("unexpected VR toggle in input probe");}
+void vr_recenter(void){runtime_fail("unexpected VR recenter in input probe");}
 static _Atomic int flag_value, flags_seen;
+static double mouse_dx,mouse_dy;
+static _Atomic int mouse_moves;
+void runtime_front_mouse_test(double dx,double dy){mouse_dx=dx;mouse_dy=dy;atomic_fetch_add(&mouse_moves,1);}
 void dm_gfx_set_flag(const char *name,int v){if(strcmp(name,"probe"))runtime_fail("unexpected runtime flag in unit probe");atomic_store(&flag_value,v);atomic_fetch_add(&flags_seen,1);}
 void dm_gfx_querylog_next(long n){(void)n;runtime_fail("unexpected query log in unit probe");}
 void dm_gfx_anomdump(void){runtime_fail("unexpected anomaly dump in unit probe");}
@@ -62,6 +71,9 @@ int main(int argc,char **argv){
  write_file(path,"a","flag probe 2\n");expect(2,2,"line appended in place");
  replace_file(path,"flag probe 1\nflag probe 2\nflag probe 3\n");expect(3,3,"file replaced by a longer copy of the list");
  replace_file(path,"flag probe 4\n");expect(4,4,"file replaced by a new, shorter list");
+ write_file(path,"a","mousemove 123.25 -12.5\nmousemove nan 0\nmousemove 0 inf\nmousemove 9000 0\nmousemove 1 2 trailing\nflag probe 5\n");
+ expect(5,5,"relative mouse diagnostic commands");
+ if(atomic_load(&mouse_moves)!=1||mouse_dx!=123.25||mouse_dy!=-12.5)runtime_fail("relative mouse command validation");
  char dir[1024];snprintf(dir,sizeof dir,"%s",path);*strrchr(dir,'/')=0;unlink(path);rmdir(dir);
  printf("{\"lines_at_start\":true,\"appended_in_place\":true,\"replaced_longer\":true,\"replaced_shorter\":true}\n");
  return 0;

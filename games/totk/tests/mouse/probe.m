@@ -6,6 +6,14 @@
 _Noreturn void runtime_fail(const char *message) { fprintf(stderr, "FAIL: %s\n", message); exit(1); }
 static uint64_t clockNow = 1000000000ull;
 uint64_t runtime_now_ns(void) { return clockNow; }
+#if defined(TOTK_GAME_V143)
+static int nativeAvailable, nativeOn, nativeSensitivity, nativeInvert, nativeMoves, nativeClears;
+static double nativeDX, nativeDY;
+int runtime_mouse_camera_available(void) { return nativeAvailable; }
+void runtime_mouse_camera_set(int on,int sensitivity,int invert) { nativeOn=on; nativeSensitivity=sensitivity; nativeInvert=invert; }
+void runtime_mouse_camera_move(double dx,double dy) { nativeMoves++; nativeDX=dx; nativeDY=dy; }
+void runtime_mouse_camera_clear(void) { nativeClears++; }
+#endif
 void runtime_feedback_attach(GCController *controller) { (void)controller; }
 void runtime_feedback_detach(GCController *controller) { (void)controller; }
 void runtime_feedback_quiet(void) {}
@@ -109,6 +117,27 @@ int main(int argc, char **argv) { @autoreleasepool {
     setenv("TOTK_MOUSE_SENSITIVITY", "20", 1); runtime_mouse_sensitivity_set(90);
     check(runtime_mouse_sensitivity_locked() && runtime_mouse_sensitivity() == 20 && file_says(sens, "fast\n"), "TOTK_MOUSE_SENSITIVITY decides; a pick is not saved");
     unsetenv("TOTK_MOUSE_SENSITIVITY");
+
+#if defined(TOTK_GAME_V143)
+    /* Production routing when the guarded camera hooks are available. */
+    runtime_mouse_set(0); nativeAvailable=1; gyroOn=1; before=feeds;
+    runtime_mouse_sensitivity_set(50); runtime_mouse_set(1);
+    check(nativeOn && nativeSensitivity==50 && !nativeInvert && motionMouse==0,"native mode configured, no simulated gyro");
+    runtime_mouse_move(10,20); mouse_tick(); s=settle();
+    check(nativeMoves==1 && nativeDX==10 && nativeDY==-20 && !s.rx && !s.ry && feeds==before,"native camera gets AppKit deltas once; no stick or gyro");
+    PromptBindings prompts; runtime_prompt_snapshot(&prompts);
+    check(prompts.device==PROMPT_KEYBOARD,"native mouse still selects keyboard prompts");
+    int moves=nativeMoves, clears=nativeClears;
+    keyboardButtons=L; runtime_mouse_move(10,0); mouse_tick(); s=settle();
+    check(nativeMoves==moves && nativeClears>clears && s.rx>0,"first ability-wheel event routes to stick and discards pending camera input");
+    for(int i=0;i<20;i++) mouse_tick(); s=settle();
+    check(s.rx>0 && feeds==before,"wheel selection stays picked without gyro");
+    keyboardButtons=0; runtime_mouse_move(2,0); mouse_tick(); s=settle();
+    check(nativeMoves==moves+1 && !s.rx && !s.ry,"wheel closes: camera resumes with centred stick");
+    runtime_mouse_sensitivity_set(75); check(nativeSensitivity==75,"native sensitivity applies live");
+    clears=nativeClears; runtime_mouse_release(); check(nativeClears>clears,"focus/settings release clears native deltas");
+    runtime_mouse_set(0); check(!nativeOn,"mouse switch disables native camera");
+#endif
 
     printf("{\"status\":\"%s\",\"probe\":\"mouse\",\"checked\":%d,\"failures\":%d}\n", failures ? "fail" : "pass", checked, failures);
     return failures != 0;

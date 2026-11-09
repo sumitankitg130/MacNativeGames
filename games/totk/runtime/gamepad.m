@@ -584,7 +584,8 @@ static void hid_pad_start(void) {}
    The window (runtime/frontend.m) holds the pointer while mouse mode is on and the window has the keyboard, and sends
    the mouse's buttons and movement here. Buttons go to the keyboard and mouse layout (runtime/input.c, keyboard_map.h:
    left attack, right draw the bow with left to shoot, middle lock on), which the settings panel's key bindings change;
-   they are also physical buttons 17-21 of the controller layout, for mouse lines in controls.txt. Movement goes to
+   they are also physical buttons 17-21 of the controller layout, for mouse lines in controls.txt. TotK 1.4.3 Mac sends
+   movement to its guarded direct-camera hooks (mouse_camera_v143.h). The ability wheel and the legacy fallback use
    runtime/mouse_look.h, ticked every 10 ms by a timer while mouse mode is on: the right stick (the stronger of it and a
    controller's) and, unless TOTK_MOUSE_GYRO=0 or the game has no six-axis device (TOTK_GYRO=0), the gyro, which the
    mouse then has to itself (runtime_motion_mouse). Settings: TOTK_MOUSE_SENSITIVITY 1-100 (50; else the settings
@@ -600,17 +601,49 @@ static dispatch_source_t mouseTimer;
 static int mouseTicksByHand;                   /* tests/mouse/probe.m drives mouse_tick itself */
 static void (*mouseHook)(void);                /* the window: mouse mode changed */
 
+static int mouse_native_camera_available(void) {
+#if defined(TOTK_GAME_V143) && TARGET_OS_OSX
+    return runtime_mouse_camera_available();
+#else
+    return 0;
+#endif
+}
+static void mouse_native_camera_configure(int on) {
+#if defined(TOTK_GAME_V143) && TARGET_OS_OSX
+    pthread_mutex_lock(&gamepadLock);
+    int sensitivity=mouseSettings.sensitivity, invert=mouseSettings.invert_y;
+    pthread_mutex_unlock(&gamepadLock);
+    runtime_mouse_camera_set(on,sensitivity,invert);
+#else
+    (void)on;
+#endif
+}
+static void mouse_native_camera_clear(void) {
+#if defined(TOTK_GAME_V143) && TARGET_OS_OSX
+    runtime_mouse_camera_clear();
+#endif
+}
+static int mouse_wheel_held(uint64_t keys) {   /* caller holds gamepadLock */
+#ifndef GAME_BOTW
+    return ((keys | gamepadState.buttons) & (1ull<<6)) != 0;
+#else
+    (void)keys; return 0;
+#endif
+}
 static void mouse_tick(void) {
     double gyro[3], acc[3]; int32_t rx, ry;
+    uint64_t keys=runtime_keyboard_buttons();
+    int native=mouse_native_camera_available();
     pthread_mutex_lock(&gamepadLock);
-#ifndef GAME_BOTW
-    /* L held (keys or controller): the ability wheel is open and the mouse points at an ability (mouse_look.h) */
-    mouse_look_point(&mouseLook, (int)(((runtime_keyboard_buttons() | gamepadState.buttons) >> 6) & 1));
-#endif
-    mouse_look_tick(&mouseLook, &mouseSettings, &rx, &ry, gyro, acc);
+    int wheel=mouse_wheel_held(keys);
+    mouse_look_point(&mouseLook,wheel);
+    if(native && !wheel) {
+        mouse_look_reset(&mouseLook); rx=ry=0;
+    } else mouse_look_tick(&mouseLook, &mouseSettings, &rx, &ry, gyro, acc);
     mouseRX = rx; mouseRY = ry;
-    int feed = mouseGyro;
+    int feed = mouseGyro && !native;
     pthread_mutex_unlock(&gamepadLock);
+    if(native && wheel) mouse_native_camera_clear();
     if (feed) runtime_motion_feed_mouse(acc, gyro, runtime_now_ns());
 }
 
@@ -643,6 +676,7 @@ void runtime_mouse_sensitivity_set(int sensitivity) {
     pthread_mutex_lock(&gamepadLock);
     mouseSettings.sensitivity = sensitivity;
     pthread_mutex_unlock(&gamepadLock);
+    mouse_native_camera_configure(atomic_load(&mouseMode));
     fprintf(stderr, "[totk-input] mouse sensitivity %d (settings)\n", sensitivity);
 }
 
@@ -652,14 +686,16 @@ static void mouse_apply(int on) {   /* start or stop the ticks and the gyro take
         MouseLookSettings settings = mouse_look_settings(NULL, getenv("TOTK_MOUSE_INVERT_Y"),
                                                          getenv("TOTK_MOUSE_COUNTERWEIGHT"), getenv("TOTK_MOUSE_DECAY"), getenv("TOTK_MOUSE_MIN_DECAY"));
         settings.sensitivity = runtime_mouse_sensitivity();
-        int gyro = runtime_gyro_enabled() && !(g && !strcmp(g, "0"));
+        int native=mouse_native_camera_available();
+        int gyro = !native && runtime_gyro_enabled() && !(g && !strcmp(g, "0"));
         pthread_mutex_lock(&gamepadLock);
         mouseSettings = settings; mouse_look_reset(&mouseLook); mouseRX = mouseRY = 0; mouseGyro = gyro;
         pthread_mutex_unlock(&gamepadLock);
+        mouse_native_camera_configure(native);
         runtime_motion_mouse(gyro);
         fprintf(stderr, "[totk-input] mouse mode on: sensitivity %d%s, counterweight %d, decay %d, minimum decay %d, gyro %s\n",
                 settings.sensitivity, settings.invert_y ? " (Y inverted)" : "", settings.counterweight, settings.decay, settings.min_decay,
-                gyro ? "from the mouse" : "not from the mouse");
+                native ? "off (direct camera angles)" : gyro ? "from the mouse" : "not from the mouse");
         if (!mouseTicksByHand && !mouseTimer) {
             mouseTimer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_queue_create("totk.mouse", DISPATCH_QUEUE_SERIAL));
             dispatch_source_set_timer(mouseTimer, dispatch_time(DISPATCH_TIME_NOW, MOUSE_LOOK_TICK_NS), MOUSE_LOOK_TICK_NS, 1000000);
@@ -671,6 +707,7 @@ static void mouse_apply(int on) {   /* start or stop the ticks and the gyro take
         pthread_mutex_lock(&gamepadLock);
         mouse_look_reset(&mouseLook); mouseRX = mouseRY = 0; mouseGyro = 0;
         pthread_mutex_unlock(&gamepadLock);
+        mouse_native_camera_configure(0);
         runtime_motion_mouse(0);
         fprintf(stderr, "[totk-input] mouse mode off\n");
     }
@@ -732,9 +769,20 @@ int runtime_mouse_set(int on) {
 void runtime_mouse_move(double dx, double dy) {   /* the window, while it holds the pointer */
     if (!atomic_load(&mouseMode)) return;
     if (fabs(dx) + fabs(dy) >= 1) runtime_prompt_note_input(PROMPT_KEYBOARD);
+    uint64_t keys=runtime_keyboard_buttons();
+    int native=mouse_native_camera_available();
     pthread_mutex_lock(&gamepadLock);
-    mouse_look_move(&mouseLook, dx, dy, &mouseSettings);
+    int wheel=mouse_wheel_held(keys);
+    /* Wheel routing must change before the first event, even when no timer
+       tick occurred since L was pressed/released. */
+    mouse_look_point(&mouseLook,wheel);
+    if(native && !wheel) { mouse_look_reset(&mouseLook); mouseRX=mouseRY=0; }
+    else mouse_look_move(&mouseLook, dx, dy, &mouseSettings);
     pthread_mutex_unlock(&gamepadLock);
+    if(native && wheel) mouse_native_camera_clear();
+#if defined(TOTK_GAME_V143) && TARGET_OS_OSX
+    if(native && !wheel) runtime_mouse_camera_move(dx,-dy);
+#endif
 }
 
 void runtime_mouse_button(int button, int down) {   /* main thread */
@@ -747,6 +795,7 @@ void runtime_mouse_button(int button, int down) {   /* main thread */
 }
 
 void runtime_mouse_release(void) {   /* main thread: the window let the pointer go (focus lost, text entry, mouse mode off) */
+    mouse_native_camera_clear();
     pthread_mutex_lock(&gamepadLock);
     mouse_look_reset(&mouseLook); mouseRX = mouseRY = 0;
     pthread_mutex_unlock(&gamepadLock);

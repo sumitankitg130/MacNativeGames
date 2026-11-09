@@ -33,6 +33,12 @@ class MouseTests(unittest.TestCase):
                          '-framework', 'CoreText', '-framework', 'CoreGraphics',
                          '-framework', 'Foundation', '-framework', 'GameController', '-framework', 'IOKit'], '<data>')
 
+    def test_native_mouse_routing(self):
+        run_probe(self, ['xcrun', 'clang', '-std=c11', '-fobjc-arc', '-Wall', '-Wextra', '-Werror',
+                         '-DTOTK_GAME_V143=1', str(TOTK / 'tests/mouse/probe.m'), str(TOTK / 'runtime/input_prompts.m'),
+                         '-framework', 'CoreText', '-framework', 'CoreGraphics',
+                         '-framework', 'Foundation', '-framework', 'GameController', '-framework', 'IOKit'], '<data>')
+
 
 if __name__ == '__main__':
     unittest.main()
