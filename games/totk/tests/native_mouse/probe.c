@@ -107,6 +107,17 @@ static void patch_checks(const char *mode) {
 int main(int argc,char **argv) {
     if(argc>1) { patch_checks(argv[1]); goto done; }
     execute_veneer();
+    reset(); check(!runtime_mouse_camera_active(),"installed hooks alone do not suppress stick input");
+    native_mouse_hook(&frame,4);
+    check(runtime_mouse_camera_active(),"idle supported camera advertises direct input");
+    now+=NATIVE_MOUSE_ACTIVE_NS;
+    check(runtime_mouse_camera_active(),"supported camera activity grace period");
+    now++;
+    check(!runtime_mouse_camera_active(),"unhandled camera restores stick input after grace period");
+    native_mouse_hook(&frame,4);
+    check(runtime_mouse_camera_active(),"returning supported camera resumes direct input");
+    runtime_mouse_camera_set(0,50,0);
+    check(!runtime_mouse_camera_active(),"disabled mouse has no active direct camera");
     for(unsigned kind=1;kind<=4;kind++) {
         reset(); runtime_mouse_camera_move(10,20); native_mouse_hook(&frame,kind);
         uintptr_t yaw=kind==1 ? object(5)+0x414 : kind==2 ? object(2)+0x414 : kind==3 ? object(0)+0xbc : frame.x[29]-0x44;

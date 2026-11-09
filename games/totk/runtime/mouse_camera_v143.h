@@ -20,8 +20,12 @@ _Static_assert(sizeof(NativeMouseFrame)==256,"native mouse saved register layout
 typedef struct {
     int on;
     double dx, dy, scale_yaw, scale_pitch;
-    uint64_t last_move, hold_until;
+    uint64_t last_move, hold_until, last_camera;
 } NativeMouseInput;
+/* A supported camera calls the hook every frame, even when the mouse is idle.
+   Ultrahand holding/rotation and some UI states use other cameras: retain the
+   normal stick path when no supported camera has run recently. */
+#define NATIVE_MOUSE_ACTIVE_NS 125000000ull
 static NativeMouseInput nativeMouseInput;
 static pthread_mutex_t nativeMouseLock = PTHREAD_MUTEX_INITIALIZER;
 static _Atomic int nativeMouseReady;
@@ -45,9 +49,10 @@ static void native_mouse_hook(NativeMouseFrame *f, uint64_t kind) {
     uint64_t now = runtime_now_ns();
     NativeMouseInput *input = &nativeMouseInput;
     if (!input->on) { pthread_mutex_unlock(&nativeMouseLock); return; }
+    input->last_camera=now;
     /* Drop input queued during a stalled/menu camera, not the first movement
        after the player rests the mouse. Keep fractional AppKit deltas. */
-    if (now-input->last_move > 125000000ull) input->dx=input->dy=0;
+    if (now-input->last_move > NATIVE_MOUSE_ACTIVE_NS) input->dx=input->dy=0;
     float yaw_delta=(float)(input->dx*input->scale_yaw), pitch_delta=(float)(input->dy*input->scale_pitch);
     input->dx=input->dy=0;
     if (yaw_delta || pitch_delta) input->hold_until=now+333000000ull;
@@ -178,6 +183,17 @@ int runtime_mouse_camera_available(void) {
     return atomic_load_explicit(&nativeMouseReady,memory_order_acquire);
 #endif
 }
+int runtime_mouse_camera_active(void) {
+#if TARGET_OS_IPHONE
+    return 0;
+#else
+    pthread_mutex_lock(&nativeMouseLock);
+    uint64_t last=nativeMouseInput.last_camera;
+    int active=nativeMouseInput.on && last && runtime_now_ns()-last<=NATIVE_MOUSE_ACTIVE_NS;
+    pthread_mutex_unlock(&nativeMouseLock);
+    return active;
+#endif
+}
 void runtime_mouse_camera_clear(void) {
 #if !TARGET_OS_IPHONE
     pthread_mutex_lock(&nativeMouseLock); native_mouse_clear_locked(); pthread_mutex_unlock(&nativeMouseLock);
@@ -187,6 +203,7 @@ void runtime_mouse_camera_set(int on,int sensitivity,int invert_y) {
 #if !TARGET_OS_IPHONE
     pthread_mutex_lock(&nativeMouseLock);
     native_mouse_clear_locked();
+    nativeMouseInput.last_camera=0;
     nativeMouseInput.on=!!on && runtime_mouse_camera_available();
     nativeMouseInput.scale_yaw=(sensitivity>=1 && sensitivity<=100 ? sensitivity : 50)/500.0;
     nativeMouseInput.scale_pitch=nativeMouseInput.scale_yaw*(invert_y ? 1 : -1);

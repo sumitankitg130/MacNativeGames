@@ -585,7 +585,7 @@ static void hid_pad_start(void) {}
    the mouse's buttons and movement here. Buttons go to the keyboard and mouse layout (runtime/input.c, keyboard_map.h:
    left attack, right draw the bow with left to shoot, middle lock on), which the settings panel's key bindings change;
    they are also physical buttons 17-21 of the controller layout, for mouse lines in controls.txt. TotK 1.4.3 Mac sends
-   movement to its guarded direct-camera hooks (mouse_camera_v143.h). The ability wheel and the legacy fallback use
+   movement to its guarded direct-camera hooks (mouse_camera_v143.h). Unhandled cameras, the ability wheel and the legacy fallback use
    runtime/mouse_look.h, ticked every 10 ms by a timer while mouse mode is on: the right stick (the stronger of it and a
    controller's) and, unless TOTK_MOUSE_GYRO=0 or the game has no six-axis device (TOTK_GYRO=0), the gyro, which the
    mouse then has to itself (runtime_motion_mouse). Settings: TOTK_MOUSE_SENSITIVITY 1-100 (50; else the settings
@@ -604,6 +604,13 @@ static void (*mouseHook)(void);                /* the window: mouse mode changed
 static int mouse_native_camera_available(void) {
 #if defined(TOTK_GAME_V143) && TARGET_OS_OSX
     return runtime_mouse_camera_available();
+#else
+    return 0;
+#endif
+}
+static int mouse_native_camera_active(void) {
+#if defined(TOTK_GAME_V143) && TARGET_OS_OSX
+    return runtime_mouse_camera_active();
 #else
     return 0;
 #endif
@@ -634,16 +641,17 @@ static void mouse_tick(void) {
     double gyro[3], acc[3]; int32_t rx, ry;
     uint64_t keys=runtime_keyboard_buttons();
     int native=mouse_native_camera_available();
+    int direct=native && mouse_native_camera_active();
     pthread_mutex_lock(&gamepadLock);
     int wheel=mouse_wheel_held(keys);
     mouse_look_point(&mouseLook,wheel);
-    if(native && !wheel) {
+    if(direct && !wheel) {
         mouse_look_reset(&mouseLook); rx=ry=0;
     } else mouse_look_tick(&mouseLook, &mouseSettings, &rx, &ry, gyro, acc);
     mouseRX = rx; mouseRY = ry;
     int feed = mouseGyro && !native;
     pthread_mutex_unlock(&gamepadLock);
-    if(native && wheel) mouse_native_camera_clear();
+    if(native && (wheel || !direct)) mouse_native_camera_clear();
     if (feed) runtime_motion_feed_mouse(acc, gyro, runtime_now_ns());
 }
 
@@ -771,17 +779,18 @@ void runtime_mouse_move(double dx, double dy) {   /* the window, while it holds 
     if (fabs(dx) + fabs(dy) >= 1) runtime_prompt_note_input(PROMPT_KEYBOARD);
     uint64_t keys=runtime_keyboard_buttons();
     int native=mouse_native_camera_available();
+    int direct=native && mouse_native_camera_active();
     pthread_mutex_lock(&gamepadLock);
     int wheel=mouse_wheel_held(keys);
     /* Wheel routing must change before the first event, even when no timer
        tick occurred since L was pressed/released. */
     mouse_look_point(&mouseLook,wheel);
-    if(native && !wheel) { mouse_look_reset(&mouseLook); mouseRX=mouseRY=0; }
+    if(direct && !wheel) { mouse_look_reset(&mouseLook); mouseRX=mouseRY=0; }
     else mouse_look_move(&mouseLook, dx, dy, &mouseSettings);
     pthread_mutex_unlock(&gamepadLock);
-    if(native && wheel) mouse_native_camera_clear();
+    if(native && (wheel || !direct)) mouse_native_camera_clear();
 #if defined(TOTK_GAME_V143) && TARGET_OS_OSX
-    if(native && !wheel) runtime_mouse_camera_move(dx,-dy);
+    if(direct && !wheel) runtime_mouse_camera_move(dx,-dy);
 #endif
 }
 

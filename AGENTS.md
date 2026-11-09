@@ -23,8 +23,9 @@ As of 2026-11-09, the fork's `main` contains both:
 - `f6007835`: direct mouse camera, adapted from dxnside's commit
   `366aa07819fe595d5bd3d66fd17a29d4eca0fdb7` under MIT.
 
-The main `Tears of the Kingdom.app` was updated to this combined runtime, with
-loader, signature, and startup checks passing. Its source label is `f600783`.
+The main `Tears of the Kingdom.app` was initially updated to this combined runtime,
+with loader, signature, and startup checks passing (source label `f600783`).
+Read its current `MNGSourceCommit` after later updates; this is a historical baseline.
 Mouse was **on** and Button prompts **Auto** at verification. Preserve the user's
 current settings rather than resetting them to these historical values.
 
@@ -143,6 +144,11 @@ See [docs/native-mouse-camera.md](docs/native-mouse-camera.md).
   `TOTK_NATIVE_MOUSE_CAMERA=0` restores that path at launch.
 - Keep button bindings and prompt activity tracking intact. The ability wheel
   remains stick-based; resolve its held action through effective input bindings.
+- Installed hooks do not mean the current camera is supported. Ultrahand's
+  held-object camera does not call these hooks. `runtime_mouse_camera_active()`
+  tracks callbacks even while idle and expires after 125 ms; unhandled states
+  retain mouse-driven stick input without simulated gyro. Preserve fallback and
+  re-entry clearing, or grabbed objects stop moving despite successful F/E input.
 - Preserve fractional movement, synchronized paired deltas/settings, stale-input
   handling, and clearing when capture or wheel routing changes. Sensitivity 50 is
   0.1 degree per AppKit point. This is direct camera input, not raw HID or a menu cursor.
@@ -175,8 +181,14 @@ See [docs/native-mouse-camera.md](docs/native-mouse-camera.md).
 - Verified in the Room of Awakening: horizontal/vertical turns, live sensitivity,
   capture release, and **F · Examine** with both features enabled. The user also
   physically tested the mouse and confirmed smooth camera turning.
-- Bow aiming, Ultrahand, Recall, and the ability wheel still need actual gameplay
-  checks with those features unlocked. Synthetic coverage is not gameplay proof.
+- Follow-up validation used a fresh copy of the main app's latest Great Sky Island
+  save near a tree log. F/E grabbed it; mouse movement failed while held before the
+  activity-based fallback fix, then worked afterward. The user confirmed physical
+  movement worked. Returning to the normal camera resumed direct movement (50
+  points at sensitivity 70 produced 7 degrees). Main saves matched all 32 pre-test
+  hashes. Full suite: 1,548 tests, 2 skipped, no failures (339 s).
+- Bow aiming, Recall, the ability wheel, and object rotation still need actual
+  gameplay checks. Synthetic coverage is not gameplay proof.
   No Xbox/PS5 controller or VR headset was available; iOS was not built because
   its SDK was unavailable. Do not claim those were verified.
 - Scene-limited shader warm-up was used in diagnostic runs. Treat their results

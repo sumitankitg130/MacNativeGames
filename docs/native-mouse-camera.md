@@ -4,6 +4,9 @@ With Mouse enabled in Settings → Input, movement turns the game camera directl
 instead of synthesizing a right stick or gyro. Sensitivity and inversion use the
 existing controls. Mouse buttons and custom button prompts keep their bindings.
 The ability wheel still uses the mouse to point the right stick at an ability.
+Ultrahand's held-object camera also uses mouse-driven stick movement: the four
+direct-camera hooks do not cover that state. Hook installation alone must not
+disable its input.
 The feature is limited to TotK 1.4.3 on macOS; other games and versions retain
 their existing input path. `TOTK_NATIVE_MOUSE_CAMERA=0` restores that path at
 launch. This is camera control, not a mouse cursor for the game's menus.
@@ -21,6 +24,11 @@ retain their fractional precision. A mutex protects paired deltas and settings;
 the camera thread consumes them once, with no camera pointer kept between calls.
 Movement older than 125 ms is discarded; the first movement after resting the
 mouse is retained. Releasing capture or entering the wheel clears queued input.
+Each supported camera records activity even without mouse movement. If no hook
+has run for 125 ms, input falls back to the existing decaying stick path, without
+simulated gyro. Direct input resumes when a supported camera returns; queued
+direct deltas and leftover stick deflection are cleared on the respective paths.
+This preserves Ultrahand movement without adding unchecked game-code patches.
 
 All four original instructions and the entire hook reservation are checked
 before any camera branch is written. Veneers occupy the executable tail after
@@ -44,6 +52,8 @@ inversion, idle/stale input, clearing, concurrent producers, instruction guards,
 reservation boundaries, fallback, and iOS export exclusion. It uses no game
 files. The mouse probe also checks direct-camera versus wheel routing, sensitivity
 changes, capture release, and keyboard/mouse prompt selection.
+Regression probes also cover camera-activity expiry/re-entry, mouse movement in
+an unhandled held-object camera, and clearing the stick when direct control resumes.
 
 For local integration tests, `TOTK_INPUT_FILE` accepts `mousemove <dx> <dy>`
 (finite AppKit deltas within ±8192). The frontend posts them on its main queue
@@ -82,8 +92,28 @@ The automated UI tool provided absolute cursor positions without useful relative
 deltas, so the camera-angle checks above used the diagnostic input channel. The
 user subsequently checked physical mouse movement and confirmed smooth camera
 turning. Bow aiming, Ultrahand, Recall and the
-ability wheel were not checked in actual gameplay: this save has not unlocked
+ability wheel were not checked in that initial save, which had not unlocked
 those features. Their layouts/routing have synthetic coverage. Physical
 controllers, a VR headset, and an iOS build were not available for this check.
 The diagnostic session used a warm-up list limited to this scene; these results
 are functional checks, not a performance benchmark. No screenshots were uploaded.
+
+### Ultrahand follow-up (2026-11-09)
+
+A fresh copy of the installed game's latest Great Sky Island save unlocked the
+log interaction. F entered Ultrahand and E grabbed the selected log, but mouse
+movement stopped affecting it: the held-object camera never called the four
+hooks, while their availability still suppressed all simulated stick movement.
+Arrow-key stick movement continued to work.
+
+The camera-activity fallback above restored mouse control while holding the log.
+The user tested it physically and confirmed it worked. Releasing the log and
+leaving Ultrahand resumed direct camera input: 50 movement points at sensitivity
+70 produced 7 degrees of yaw. The configured gameplay prompts remained visible.
+Tests used isolated controls and copied saves with cloud sync off; all 32 main
+save files still matched their pre-test hashes afterward.
+
+The five focused mouse tests and the full suite passed (**1,548 tests, 2 skipped,
+no failures**, 339 s for the full suite). The test app's loader, signature and
+self-check passed. Bow aiming, Recall, ability-wheel gameplay and object rotation
+remain separate coverage limits; this check does not validate those states.

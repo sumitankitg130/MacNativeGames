@@ -44,6 +44,7 @@ void runtime_dump_threads(void);   /* threads.c: every guest thread's wait state
 void runtime_frame_step_pin(double ms);                  /* game_patches.c: pin the real-time frame step (diagnostics), 0 = real time */
 void runtime_frame_step_update(uint64_t now_ns);
 int runtime_mouse_camera_available(void);   /* direct camera, Mac TotK 1.4.3 only */
+int runtime_mouse_camera_active(void);      /* a supported camera is currently consuming input */
 void runtime_mouse_camera_set(int on,int sensitivity,int invert_y);
 void runtime_mouse_camera_move(double dx,double dy);   /* AppKit x right, y up */
 void runtime_mouse_camera_clear(void);                 /* discard input when capture/wheel changes */
