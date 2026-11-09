@@ -3,9 +3,44 @@
 <p align="center"><b>A technical exploration: can a Nintendo Switch game's NVN graphics be ported to Metal?</b><br>
 Tested with your own copies of Tears of the Kingdom and Breath of the Wild on Mac, iPhone and iPad. Not an emulator: the game's own ARM64 code runs directly on Apple chips.</p>
 
-[English](#english) | [中文](#chinese)
+[English](#english) | [中文](#chinese) | [Fork additions](#fork-additions)
 
 # English
+
+## Fork additions
+
+This fork of [ly05010419/MacNativeGames](https://github.com/ly05010419/MacNativeGames)
+adds the following input improvements for **Tears of the Kingdom 1.4.3 on macOS**.
+Other games, game versions, and iOS retain their existing input and prompt behavior.
+
+| Addition | Behavior | Details |
+| --- | --- | --- |
+| Live configured button prompts | Menus and normal gameplay popups show the assigned keyboard/mouse or controller bindings. Auto follows the active input device; fixed Keyboard / mouse, Xbox, PlayStation, and Switch styles are also available. Binding and style changes appear without restarting. | [Live button prompts](docs/live-button-prompts.md) |
+| Direct mouse camera | Mouse movement turns supported cameras directly, with live sensitivity adjustment and the existing inversion and button bindings. Adapted from dxnside's MIT-licensed contribution. | [Mouse camera and attribution](docs/native-mouse-camera.md) |
+| Ultrahand object movement fix | Mouse movement continues to work after grabbing an object. Unhandled camera states use the existing mouse-driven stick path; supported cameras resume direct control automatically. | [Ultrahand validation](docs/native-mouse-camera.md#ultrahand-follow-up-2026-11-09) |
+
+Build or update TotK 1.4.3 **from this fork's checkout** using the existing
+[installation instructions](docs/install.md). These changes are included automatically;
+no separate prompt mod is required. To update an existing Mac app from the checkout:
+
+```sh
+python3.14 update_runtime.py "Tears of the Kingdom.app" --work TOTK_build
+```
+
+Press **1 → Input** in the running game. **Button prompts** defaults to **Auto**;
+choose a fixed style if preferred. Turn **Mouse** on to use mouse camera control
+and adjust **Mouse sensitivity** there. These settings apply during the same session.
+Controller icon styles label the configured physical buttons; selecting a style
+does not change the input mapping. The static icon generator also accepts a saved
+keyboard layout and mouse-mode choice; see [static icon mods](docs/live-button-prompts.md#static-icon-mods).
+
+Validated on Apple silicon with TotK 1.4.3: live prompt updates, direct camera
+movement, and grabbing/moving a log with Ultrahand, including physical mouse checks.
+The full regression suite passed at `c895a670`: **1,548 tests, 2 skipped, no failures**.
+Xbox/PS5 mappings and icon switching have software coverage; physical controllers
+were not available. Baked tutorial graphics and faint controller diagrams are
+unchanged. Bow aiming, Recall, ability-wheel gameplay, and object rotation still
+need separate gameplay checks; this fork's changes were not built for iOS.
 
 ## Legal
 
@@ -117,6 +152,7 @@ The [shared shader list](docs/shader-list.md) now holds **15,070 shader variants
 
 ## What's new
 
+- **2026-11-09 (this fork): live configured prompts, direct mouse camera, and an Ultrahand held-object mouse fix for TotK 1.4.3 on macOS.** See [Fork additions](#fork-additions) for setup, validation, and coverage limits.
 - **2026-11-03: optional SMAA and FXAA Quality for Tears of the Kingdom 1.4.3 on Mac.** Choose the method and its quality separately on the Effects page; the game's original FXAA remains the default ([controls](docs/controls.md)).
 - **2026-11-03: the first Switch 2 games, experimental.** Donkey Kong Bananza plays on the Mac from a development build;
   Pokémon Pokopia plays its opening into the first area (scripted test). Pokopia 2.0.1 packages as a Mac app from your
@@ -169,6 +205,15 @@ MIT (see [LICENSE](LICENSE)). Third-party code keeps its own license: [THIRD_PAR
 <a id="chinese"></a>
 
 # 中文说明
+
+## 此 Fork 的改动
+
+本 Fork 为 **macOS 上的《王国之泪》1.4.3** 增加实时按键提示、直接鼠标镜头控制，
+并修复使用究极手抓住物体后鼠标无法移动物体的问题。按 **1 → Input**，
+在 **Button prompts** 中选择自动或固定图标样式，打开 **Mouse** 并调整鼠标灵敏度；
+设置和按键提示无需重启即可更新。从本 Fork 构建或更新 App 时会自动包含这些改动。
+其他游戏、版本和 iOS 保持原有行为。详细用法、来源和测试范围见
+[Fork additions（英文）](#fork-additions)。
 
 ## 法律声明
 
@@ -276,6 +321,7 @@ Switch 2 游戏在《王国之泪》同一套运行时上运行：它们的 Ampe
 
 ## 更新说明
 
+- **2026-11-09（本 Fork）：** macOS《王国之泪》1.4.3 的实时按键提示、直接鼠标镜头及究极手物体移动修复，见 [Fork additions](#fork-additions)。
 - **2026-11-03：第一批 Switch 2 游戏，实验性。** 大金刚 Bananza 用开发构建可以在 Mac 上玩；宝可梦 Pokopia 能玩过开场
   进到第一个区域（脚本测试）。Pokopia 2.0.1 可以用你自己的转储目录打包成 Mac App：`python3 build_app.py <转储目录>
   --shared-fonts <王国之泪 / 旷野之息打包时提取的六个 .bfttf 字体>`（不需要 keys；[docs/ns2-port.md](docs/ns2-port.md)）。
